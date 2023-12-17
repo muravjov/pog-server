@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1";
+
+service HTTPProxy {
+  rpc Run(stream Packet) returns (stream Packet) {}
+}
+
+message Packet {
+  oneof union {
+    bytes payload = 1;
+    ConnectRequest connect_request = 2;
+    ConnectResponse connect_response = 3;
+  }  
+}
+
+message ConnectRequest {
+  string host_port = 1;
+}
+
+message ConnectResponse {
+}
