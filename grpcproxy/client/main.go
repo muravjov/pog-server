@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
-	"time"
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"google.golang.org/grpc"
@@ -42,12 +41,12 @@ func main() {
 }
 
 func proxySession(client pb.HTTPProxyClient) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	stream, err := client.Run(ctx)
 	if err != nil {
 		log.Printf("client.Run failed: %v", err)
+		return
 	}
 	defer func() {
 		if err := stream.CloseSend(); err != nil {
@@ -67,11 +66,13 @@ func proxySession(client pb.HTTPProxyClient) {
 	}
 	if err := stream.Send(packet); err != nil {
 		log.Printf("client.Run: stream.Send(%v) failed: %v", packet, err)
+		return
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
 		log.Printf("client.Run: stream.Recv() failed: %v", err)
+		return
 	}
 
 	log.Printf("Got reponse %s ", resp)

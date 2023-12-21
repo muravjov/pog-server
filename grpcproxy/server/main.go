@@ -36,6 +36,31 @@ type httpProxyServer struct {
 }
 
 func (s *httpProxyServer) Run(stream pb.HTTPProxy_RunServer) error {
+	packet, err := stream.Recv()
+	if err != nil {
+		return status.Errorf(codes.FailedPrecondition, "stream.Recv failed: %v", err)
+	}
+
+	req, ok := packet.Union.(*pb.Packet_ConnectRequest)
+	if !ok {
+		return status.Errorf(codes.FailedPrecondition, "ConnectRequest packet expected but got: %v", packet.Union)
+	}
+
 	// :TODO!!!:
-	return status.Errorf(codes.Unimplemented, "method Run not implemented")
+	log.Printf("CONNECT %v", req.ConnectRequest.HostPort)
+
+	packet = &pb.Packet{
+		Union: &pb.Packet_ConnectResponse{
+			ConnectResponse: &pb.ConnectResponse{},
+		},
+	}
+
+	// :REFACTOR:
+	if err := stream.Send(packet); err != nil {
+		log.Printf("stream.Send(%v) failed: %v", packet, err)
+		return err
+	}
+
+	// :TODO!!!:
+	return status.Errorf(codes.Unimplemented, "not implemented")
 }
