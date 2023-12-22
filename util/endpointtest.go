@@ -15,16 +15,24 @@ import (
 )
 
 type Endpoint struct {
-	Method  string
-	Path    string
-	Data    interface{}
-	Handler func(w http.ResponseWriter, r *http.Request)
-	IsJSON  bool
+	Method        string
+	URL           string
+	Path          string
+	Data          interface{}
+	Handler       func(w http.ResponseWriter, r *http.Request)
+	IsJSONPayload bool
+	Transport     http.RoundTripper
+
+	OriginalURL string
 }
 
 func DoEndpoint(endpoint *Endpoint, t *testing.T) *http.Response {
 	ser := httptest.NewServer(http.HandlerFunc(endpoint.Handler))
 	defer ser.Close()
+
+	if endpoint.Transport != nil {
+		ser.Client().Transport = endpoint.Transport
+	}
 
 	getMethod := func(method string) string {
 		if endpoint.Method != "" {
@@ -33,20 +41,27 @@ func DoEndpoint(endpoint *Endpoint, t *testing.T) *http.Response {
 		return method
 	}
 
+	endpoint.OriginalURL = ser.URL
+
 	var req *http.Request
-	url := ser.URL + endpoint.Path
-	if endpoint.IsJSON {
-		if endpoint.Data != nil {
+	url := ser.URL
+	if endpoint.URL != "" {
+		url = endpoint.URL
+	}
+
+	url = url + endpoint.Path
+	if endpoint.Data != nil {
+		if endpoint.IsJSONPayload {
 			b, err := json.Marshal(endpoint.Data)
 			assert.NoError(t, err)
 
 			req, _ = http.NewRequest(getMethod(http.MethodPost), url, bytes.NewReader(b))
 			req.Header.Add("Content-Type", "application/json")
 		} else {
-			req, _ = http.NewRequest(getMethod(http.MethodGet), url, nil)
+			req = NewFormRequestFromMap(url, endpoint.Data.(map[string]string))
 		}
 	} else {
-		req = NewFormRequestFromMap(url, endpoint.Data.(map[string]string))
+		req, _ = http.NewRequest(getMethod(http.MethodGet), url, nil)
 	}
 
 	res, err := ser.Client().Do(req)
