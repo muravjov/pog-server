@@ -43,20 +43,44 @@ func Main() bool {
 	return StartAndStop(server, listener, func() {})
 }
 
+type Server struct {
+	server *grpc.Server
+	wg     sync.WaitGroup
+
+	serverOk bool
+}
+
+func NewServer(server *grpc.Server) *Server {
+	return &Server{
+		server:   server,
+		serverOk: true,
+	}
+}
+
+func (s *Server) Start(lis net.Listener) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if err := s.server.Serve(lis); err != nil && err != grpc.ErrServerStopped {
+			util.Error(err)
+			s.serverOk = false
+		}
+	}()
+}
+
+func (s *Server) Stop() bool {
+	s.server.GracefulStop()
+
+	s.wg.Wait()
+	return s.serverOk
+}
+
 func StartAndStop(server *grpc.Server, lis net.Listener, beforeShutdown func()) bool {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-	var servicesWg sync.WaitGroup
-	serverOk := true
 
-	servicesWg.Add(1)
-	go func() {
-		defer servicesWg.Done()
-		if err := server.Serve(lis); err != nil && err != grpc.ErrServerStopped {
-			util.Error(err)
-			serverOk = false
-		}
-	}()
+	s := NewServer(server)
+	s.Start(lis)
 
 	util.Info("waiting for termination signal...")
 	sig := <-sigChan
@@ -64,10 +88,7 @@ func StartAndStop(server *grpc.Server, lis net.Listener, beforeShutdown func()) 
 
 	beforeShutdown()
 
-	server.GracefulStop()
-
-	servicesWg.Wait()
-	return serverOk
+	return s.Stop()
 }
 
 type httpProxyServer struct {
