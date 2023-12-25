@@ -3,6 +3,7 @@ module git.catbo.net/muravjov/go2023
 go 1.21.3
 
 require (
+	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8
 	github.com/getsentry/sentry-go v0.25.0
 	github.com/golang/protobuf v1.5.3
 	github.com/spf13/viper v1.16.0
