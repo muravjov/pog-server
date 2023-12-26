@@ -72,6 +72,10 @@ func DoEndpoint(endpoint *Endpoint, t *testing.T) *http.Response {
 
 func InvokeEndpoint(endpoint *Endpoint, dumpJSON bool, t *testing.T) {
 	res := DoEndpoint(endpoint, t)
+	if res == nil {
+		return
+	}
+
 	// nolint: errcheck
 	defer res.Body.Close()
 	assert.EqualValues(t, http.StatusOK, res.StatusCode)

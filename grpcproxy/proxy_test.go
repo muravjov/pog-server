@@ -1,6 +1,8 @@
 package grpcproxy
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"net/url"
 	"testing"
@@ -13,9 +15,60 @@ import (
 	"git.catbo.net/muravjov/go2023/grpcapi"
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/grpctest"
-	"git.catbo.net/muravjov/go2023/proxy"
 	"git.catbo.net/muravjov/go2023/util"
 )
+
+func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
+	ctx := context.Background()
+
+	stream, err := client.Run(ctx)
+	if err != nil {
+		log.Printf("client.Run failed: %v", err)
+		return
+	}
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("stream.CloseSend failed: %v", err)
+		}
+	}()
+
+	hostPort := r.Host
+
+	packet := &pb.Packet{
+		Union: &pb.Packet_ConnectRequest{
+			ConnectRequest: &pb.ConnectRequest{
+				HostPort: hostPort,
+			},
+		},
+	}
+	if err := stream.Send(packet); err != nil {
+		log.Printf("client.Run: stream.Send(%v) failed: %v", packet, err)
+		return
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		log.Printf("client.Run: stream.Recv() failed: %v", err)
+		return
+	}
+
+	log.Printf("Got reponse %s ", resp)
+
+	// :TODO:
+	//handleHTTP(w, r, client)
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
+}
+
+func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
+	if r.Method == http.MethodConnect {
+		handleTunneling(w, r, client)
+		return
+	}
+
+	// :TODO:
+	//handleHTTP(w, r, client)
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
+}
 
 func TestProxy(t *testing.T) {
 	//t.SkipNow()
@@ -53,7 +106,8 @@ func TestProxy(t *testing.T) {
 		endpoint := util.Endpoint{
 			URL: "https://ifconfig.me",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				proxy.ProxyHandler(w, r)
+				//proxy.ProxyHandler(w, r)
+				ProxyHandler(w, r, client)
 			},
 		}
 
