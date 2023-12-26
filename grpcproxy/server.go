@@ -19,14 +19,22 @@ type httpProxyServer struct {
 }
 
 func (s *httpProxyServer) Run(stream pb.HTTPProxy_RunServer) error {
-	packet, err := stream.Recv()
+	var statusErr error
+	doRun(stream, &statusErr)
+
+	return statusErr
+}
+
+func doRun(stream Stream, statusErr *error) {
+	packet, err := Recv(stream)
 	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "stream.Recv failed: %v", err)
+		return
 	}
 
 	req, ok := packet.Union.(*pb.Packet_ConnectRequest)
 	if !ok {
-		return status.Errorf(codes.FailedPrecondition, "ConnectRequest packet expected but got: %v", packet.Union)
+		*statusErr = status.Errorf(codes.FailedPrecondition, "ConnectRequest packet expected but got: %v", packet.Union)
+		return
 	}
 
 	// :TODO!!!:
@@ -37,13 +45,11 @@ func (s *httpProxyServer) Run(stream pb.HTTPProxy_RunServer) error {
 			ConnectResponse: &pb.ConnectResponse{},
 		},
 	}
-
-	// :REFACTOR:
-	if err := stream.Send(packet); err != nil {
-		log.Printf("stream.Send(%v) failed: %v", packet, err)
-		return err
+	if err := Send(stream, packet); err != nil {
+		return
 	}
 
 	// :TODO!!!:
-	return status.Errorf(codes.Unimplemented, "not implemented")
+	*statusErr = status.Errorf(codes.Unimplemented, "not implemented")
+	//*statusErr = nil
 }

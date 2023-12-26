@@ -34,6 +34,8 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 
 	hostPort := r.Host
 
+	// :TODO!!!: set http.Error on Send/Recv error etc
+
 	packet := &pb.Packet{
 		Union: &pb.Packet_ConnectRequest{
 			ConnectRequest: &pb.ConnectRequest{
@@ -41,21 +43,18 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 			},
 		},
 	}
-	if err := stream.Send(packet); err != nil {
-		log.Printf("client.Run: stream.Send(%v) failed: %v", packet, err)
+	if err := Send(stream, packet); err != nil {
 		return
 	}
 
-	resp, err := stream.Recv()
+	resp, err := Recv(stream)
 	if err != nil {
-		log.Printf("client.Run: stream.Recv() failed: %v", err)
 		return
 	}
 
 	log.Printf("Got reponse %s ", resp)
 
 	// :TODO:
-	//handleHTTP(w, r, client)
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
 
