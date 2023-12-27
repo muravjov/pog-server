@@ -1,7 +1,9 @@
 package grpcproxy
 
 import (
-	"log"
+	"net"
+	"net/http"
+	"time"
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"google.golang.org/grpc"
@@ -31,25 +33,40 @@ func doRun(stream Stream, statusErr *error) {
 		return
 	}
 
-	req, ok := packet.Union.(*pb.Packet_ConnectRequest)
-	if !ok {
-		*statusErr = status.Errorf(codes.FailedPrecondition, "ConnectRequest packet expected but got: %v", packet.Union)
+	req, err := castFromUnion[*pb.Packet_ConnectRequest](packet)
+	if err != nil {
+		*statusErr = status.Error(codes.FailedPrecondition, err.Error())
 		return
 	}
 
-	// :TODO!!!:
-	log.Printf("CONNECT %v", req.ConnectRequest.HostPort)
+	sendConnectResponse := func(httpErr *pb.HTTPError) error {
+		packet = &pb.Packet{
+			Union: &pb.Packet_ConnectResponse{
+				ConnectResponse: &pb.ConnectResponse{
+					Error: httpErr,
+				},
+			},
+		}
+		if err := Send(stream, packet); err != nil {
+			return err
+		}
 
-	packet = &pb.Packet{
-		Union: &pb.Packet_ConnectResponse{
-			ConnectResponse: &pb.ConnectResponse{},
-		},
+		return err
 	}
-	if err := Send(stream, packet); err != nil {
+
+	destConn, err := net.DialTimeout("tcp", req.ConnectRequest.HostPort, 10*time.Second)
+	if err != nil {
+		sendConnectResponse(&pb.HTTPError{
+			StatusCode: http.StatusServiceUnavailable,
+			Error:      err.Error(),
+		})
+		return
+	}
+	defer destConn.Close()
+
+	if err := sendConnectResponse(nil); err != nil {
 		return
 	}
 
-	// :TODO!!!:
-	*statusErr = status.Errorf(codes.Unimplemented, "not implemented")
-	//*statusErr = nil
+	handleBinaryTunneling(stream, destConn)
 }

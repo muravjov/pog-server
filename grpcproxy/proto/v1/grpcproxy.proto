@@ -19,4 +19,10 @@ message ConnectRequest {
 }
 
 message ConnectResponse {
+  optional HTTPError error = 1;
+}
+
+message HTTPError {
+  int32 status_code = 1;
+  string error = 2;
 }

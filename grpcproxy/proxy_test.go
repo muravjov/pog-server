@@ -2,7 +2,7 @@ package grpcproxy
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -21,21 +21,23 @@ import (
 func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
 	ctx := context.Background()
 
+	bailOut := func(errMsg string, a ...any) {
+		http.Error(w, fmt.Sprintf(errMsg, a...), http.StatusInternalServerError)
+		return
+	}
+
 	stream, err := client.Run(ctx)
 	if err != nil {
-		log.Printf("client.Run failed: %v", err)
+		bailOut("grpc connection failed: %v", err)
 		return
 	}
 	defer func() {
 		if err := stream.CloseSend(); err != nil {
-			log.Printf("stream.CloseSend failed: %v", err)
+			util.Errorf("stream.CloseSend failed: %v", err)
 		}
 	}()
 
 	hostPort := r.Host
-
-	// :TODO!!!: set http.Error on Send/Recv error etc
-
 	packet := &pb.Packet{
 		Union: &pb.Packet_ConnectRequest{
 			ConnectRequest: &pb.ConnectRequest{
@@ -44,18 +46,43 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 		},
 	}
 	if err := Send(stream, packet); err != nil {
+		bailOut("grpc i/o failure: %v", err)
 		return
 	}
 
-	resp, err := Recv(stream)
+	pktResp, err := Recv(stream)
 	if err != nil {
+		bailOut("grpc i/o failure: %v", err)
 		return
 	}
 
-	log.Printf("Got reponse %s ", resp)
+	resp, err := castFromUnion[*pb.Packet_ConnectResponse](pktResp)
+	if err != nil {
+		bailOut(err.Error())
+		return
+	}
 
-	// :TODO:
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	if err := resp.ConnectResponse.Error; err != nil {
+		http.Error(w, err.Error, int(err.StatusCode))
+		return
+	}
+
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		bailOut("Hijacking not supported")
+		return
+	}
+	// :TRICKY: we need to set status before Hijack() or get an error
+	w.WriteHeader(http.StatusOK)
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	defer clientConn.Close()
+
+	handleBinaryTunneling(stream, clientConn)
 }
 
 func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
@@ -101,9 +128,14 @@ func TestProxy(t *testing.T) {
 		}
 	}
 
+	u := "https://ifconfig.me"
+	if false {
+		u = "https://ifconfig.me1"
+	}
+
 	if true {
 		endpoint := util.Endpoint{
-			URL: "https://ifconfig.me",
+			URL: u,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				//proxy.ProxyHandler(w, r)
 				ProxyHandler(w, r, client)
