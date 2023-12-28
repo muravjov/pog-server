@@ -6,16 +6,42 @@ import (
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"context"
 )
+
+func httpError(w http.ResponseWriter, errMsg string, code int) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	// clients mostly hide errd response bodies from user, so let her know with a header
+	w.Header().Set("X-Proxy-Over-GRPC-Error", errMsg)
+
+	w.WriteHeader(code)
+	fmt.Fprintln(w, errMsg)
+}
 
 func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
 	ctx := context.Background()
 
 	bailOut := func(errMsg string, a ...any) {
-		http.Error(w, fmt.Sprintf(errMsg, a...), http.StatusInternalServerError)
-		return
+		code := http.StatusInternalServerError
+		for _, item := range a {
+			err, ok := item.(error)
+			if !ok {
+				continue
+			}
+
+			if status.Code(err) == codes.Unavailable {
+				code = http.StatusServiceUnavailable
+			}
+		}
+
+		errMsg = fmt.Sprintf(errMsg, a...)
+
+		httpError(w, errMsg, code)
 	}
 
 	stream, err := client.Run(ctx)
@@ -55,7 +81,7 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 	}
 
 	if err := resp.ConnectResponse.Error; err != nil {
-		http.Error(w, err.Error, int(err.StatusCode))
+		httpError(w, err.Error, int(err.StatusCode))
 		return
 	}
 
@@ -69,7 +95,7 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		httpError(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	defer clientConn.Close()
@@ -85,5 +111,5 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyCli
 
 	// :TODO:
 	//handleHTTP(w, r, client)
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	httpError(w, "Not implemented", http.StatusNotImplemented)
 }
