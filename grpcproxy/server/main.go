@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"net"
 	"os"
 
 	"git.catbo.net/muravjov/go2023/grpcapi"
 	"git.catbo.net/muravjov/go2023/grpcproxy"
+	"git.catbo.net/muravjov/go2023/util"
 	"google.golang.org/grpc"
 )
 
@@ -25,10 +25,11 @@ func Main() bool {
 		port = "8080"
 	}
 
-	log.Printf("proxy-via-grpc server: starting on port %s", port)
+	util.Infof("proxy-over-grpc server: starting on port %s", port)
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("net.Listen: %v", err)
+		util.Errorf("net.Listen: %v", err)
+		return false
 	}
 
 	server := grpc.NewServer()

@@ -6,6 +6,7 @@ require (
 	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8
 	github.com/getsentry/sentry-go v0.25.0
 	github.com/golang/protobuf v1.5.3
+	github.com/gorilla/mux v1.8.1
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
 	google.golang.org/grpc v1.56.3

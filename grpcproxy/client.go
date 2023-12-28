@@ -1,29 +1,35 @@
 package grpcproxy
 
 import (
+	"fmt"
+	"net/http"
+
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
+	"git.catbo.net/muravjov/go2023/util"
 
 	"context"
-	"log"
 )
 
-func ProxySession(client pb.HTTPProxyClient) {
+func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
 	ctx := context.Background()
+
+	bailOut := func(errMsg string, a ...any) {
+		http.Error(w, fmt.Sprintf(errMsg, a...), http.StatusInternalServerError)
+		return
+	}
 
 	stream, err := client.Run(ctx)
 	if err != nil {
-		log.Printf("client.Run failed: %v", err)
+		bailOut("grpc connection failed: %v", err)
 		return
 	}
 	defer func() {
 		if err := stream.CloseSend(); err != nil {
-			log.Printf("stream.CloseSend failed: %v", err)
+			util.Errorf("stream.CloseSend failed: %v", err)
 		}
 	}()
 
-	// :TODO!!!:
-	hostPort := "ifconfig.me:443"
-
+	hostPort := r.Host
 	packet := &pb.Packet{
 		Union: &pb.Packet_ConnectRequest{
 			ConnectRequest: &pb.ConnectRequest{
@@ -31,16 +37,53 @@ func ProxySession(client pb.HTTPProxyClient) {
 			},
 		},
 	}
-	if err := stream.Send(packet); err != nil {
-		log.Printf("client.Run: stream.Send(%v) failed: %v", packet, err)
+	if err := Send(stream, packet); err != nil {
+		bailOut("grpc i/o failure: %v", err)
 		return
 	}
 
-	resp, err := stream.Recv()
+	pktResp, err := Recv(stream)
 	if err != nil {
-		log.Printf("client.Run: stream.Recv() failed: %v", err)
+		bailOut("grpc i/o failure: %v", err)
 		return
 	}
 
-	log.Printf("Got reponse %s ", resp)
+	resp, err := castFromUnion[*pb.Packet_ConnectResponse](pktResp)
+	if err != nil {
+		bailOut(err.Error())
+		return
+	}
+
+	if err := resp.ConnectResponse.Error; err != nil {
+		http.Error(w, err.Error, int(err.StatusCode))
+		return
+	}
+
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		bailOut("Hijacking not supported")
+		return
+	}
+	// :TRICKY: we need to set status before Hijack() or get an error
+	w.WriteHeader(http.StatusOK)
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	defer clientConn.Close()
+
+	handleBinaryTunneling(stream, clientConn)
+}
+
+func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
+	if r.Method == http.MethodConnect {
+		handleTunneling(w, r, client)
+		return
+	}
+
+	// :TODO:
+	//handleHTTP(w, r, client)
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
