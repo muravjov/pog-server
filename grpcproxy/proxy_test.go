@@ -32,7 +32,6 @@ func ProxySession(client pb.HTTPProxyClient) {
 		}
 	}()
 
-	// :TODO!!!:
 	hostPort := "ifconfig.me:443"
 
 	packet := &pb.Packet{

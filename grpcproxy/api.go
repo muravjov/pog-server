@@ -2,6 +2,7 @@ package grpcproxy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -111,19 +112,27 @@ func (t *streamReader) Read(p []byte) (int, error) {
 	return t.buf.Read(p)
 }
 
-func handleBinaryTunneling(stream Stream, conn net.Conn) {
+func handleBinaryTunneling(stream Stream, conn net.Conn, cancel context.CancelFunc) {
 	var wg sync.WaitGroup
 
-	transfer(NewStreamWriter(stream), conn, &wg)
-	transfer(conn, NewStreamReader(stream), &wg)
+	// when conn-side closes we close writer, and also we need to finish the transfer() goroutine
+	// with the reader => we use `cancel` func to close the stream (client) or initiate close action
+	// (server: get out of grpc operation loop)
+	transfer(NewStreamWriter(stream), conn, &wg, cancel)
+	transfer(conn, NewStreamReader(stream), &wg, nil)
 
 	wg.Wait()
 }
 
-func transfer(destination io.Writer, source io.Reader, wg *sync.WaitGroup) {
+func transfer(destination io.Writer, source io.Reader, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if cancel != nil {
+				cancel()
+			}
+		}()
 		io.Copy(destination, source)
 	}()
 }

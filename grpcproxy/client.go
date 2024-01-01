@@ -24,7 +24,8 @@ func httpError(w http.ResponseWriter, errMsg string, code int) {
 }
 
 func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	bailOut := func(errMsg string, a ...any) {
 		code := http.StatusInternalServerError
@@ -100,7 +101,7 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 	}
 	defer clientConn.Close()
 
-	handleBinaryTunneling(stream, clientConn)
+	handleBinaryTunneling(stream, clientConn, cancel)
 }
 
 func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {

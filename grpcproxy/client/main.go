@@ -61,5 +61,7 @@ func Main() bool {
 	}
 
 	util.Infof("proxy-over-grpc client listening address %s", server.Addr)
+	util.Infof("PID: %v", os.Getpid())
+
 	return util.ListenAndServe(server, func() {})
 }

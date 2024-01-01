@@ -1,6 +1,7 @@
 package grpcproxy
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"time"
@@ -68,5 +69,10 @@ func doRun(stream Stream, statusErr *error) {
 		return
 	}
 
-	handleBinaryTunneling(stream, destConn)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		handleBinaryTunneling(stream, destConn, cancel)
+	}()
+
+	<-ctx.Done()
 }
