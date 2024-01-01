@@ -26,6 +26,8 @@ func Main() bool {
 	}
 
 	util.Infof("proxy-over-grpc server: starting on port %s", port)
+	util.Infof("PID: %v", os.Getpid())
+
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		util.Errorf("net.Listen: %v", err)
