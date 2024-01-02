@@ -19,13 +19,17 @@ func main() {
 	os.Exit(exitCode)
 }
 
+var Version = "dev"
+
 func Main() bool {
+	util.Infof("proxy-over-grpc server, version: %s", Version)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	util.Infof("proxy-over-grpc server: starting on port %s", port)
+	util.Infof("starting on port %s", port)
 	util.Infof("PID: %v", os.Getpid())
 
 	listener, err := net.Listen("tcp", ":"+port)

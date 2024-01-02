@@ -9,8 +9,10 @@ WORKDIR /app
 #RUN --mount=target=. go mod download
 RUN --mount=target=. go install .
 
+ARG GRPCPROXY_COMMIT
+
 COPY . .
-RUN CGO_ENABLED=0 go build -mod=readonly -v -o /bin/application ./grpcproxy/server
+RUN CGO_ENABLED=0 go build -mod=readonly -v -o /bin/application -ldflags "-X main.Version=1.0.0_${GRPCPROXY_COMMIT:-dockerfile_empty_value}" ./grpcproxy/server
 
 FROM alpine:latest as certimage
 RUN apk --no-cache add ca-certificates tzdata
