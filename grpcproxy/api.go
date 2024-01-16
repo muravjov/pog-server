@@ -10,6 +10,8 @@ import (
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Stream interface {
@@ -17,9 +19,33 @@ type Stream interface {
 	Recv() (*pb.Packet, error)
 }
 
+func isEndError(err error) bool {
+	// our cancel() errors can be converted to gRPC' Canceled errors
+	// - on client: when we call cancel() on a context used for a client stream =>
+	//   Send() will err because that client stream is closed
+	// - on server: when we got Canceled from client and so Recv() returns Canceled
+	if status.Code(err) == codes.Canceled {
+		return true
+	}
+
+	// - Send(): we have closed the (client) stream and still trying to send
+	// - Recv(): the server side closed the stream
+	if err == io.EOF {
+		return true
+	}
+
+	return false
+}
+
 func Send(stream Stream, packet *pb.Packet) error {
 	if err := stream.Send(packet); err != nil {
-		util.Errorf("stream.Send(%v) failed: %v", packet, err)
+		func() {
+			if isEndError(err) {
+				return
+			}
+
+			util.Errorf("stream.Send(%v) failed: %v", packet, err)
+		}()
 		return err
 	}
 	return nil
@@ -28,7 +54,13 @@ func Send(stream Stream, packet *pb.Packet) error {
 func Recv(stream Stream) (*pb.Packet, error) {
 	packet, err := stream.Recv()
 	if err != nil {
-		util.Errorf("stream.Recv() failed: %v, %v", packet, err)
+		func() {
+			if isEndError(err) {
+				return
+			}
+
+			util.Errorf("stream.Recv() failed: %v, %v", packet, err)
+		}()
 	}
 	return packet, err
 }
