@@ -3,6 +3,10 @@ package grpctest
 import (
 	"fmt"
 	"net"
+
+	"git.catbo.net/muravjov/go2023/grpcapi"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // stolen from net/http/httptest
@@ -24,3 +28,39 @@ func NewLocalListener() net.Listener {
 }
 
 var serveFlag string
+
+type ServerClient struct {
+	s *grpcapi.Server
+
+	Conn *grpc.ClientConn
+	Addr net.Addr
+}
+
+func (s *ServerClient) Close() {
+	s.Conn.Close()
+	s.s.Stop()
+}
+
+func StartServerClient(server *grpc.Server) (*ServerClient, error) {
+	s := grpcapi.NewServer(server)
+
+	listener := NewLocalListener()
+
+	s.Start(listener)
+
+	serverAddr := listener.Addr().String()
+
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(serverAddr, opts...)
+	if err != nil {
+		s.Stop()
+		return nil, err
+	}
+
+	return &ServerClient{
+		s:    s,
+		Conn: conn,
+		Addr: listener.Addr(),
+	}, nil
+}

@@ -10,9 +10,7 @@ import (
 	"github.com/bradfitz/iter"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
-	"git.catbo.net/muravjov/go2023/grpcapi"
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/grpctest"
 	"git.catbo.net/muravjov/go2023/util"
@@ -61,24 +59,16 @@ func TestProxy(t *testing.T) {
 	util.SetupSlog(true)
 
 	server := grpc.NewServer()
+	// registering should be done before grpcapi.Server.Start() = grpc.Server.Serve()
 	RegisterProxySvc(server)
 
-	s := grpcapi.NewServer(server)
-
-	listener := grpctest.NewLocalListener()
-
-	s.Start(listener)
-	defer s.Stop()
-
-	serverAddr := listener.Addr().String()
-	//util.Info("grpc server listening on:", serverAddr)
-
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	conn, err := grpc.Dial(serverAddr, opts...)
+	sc, err := grpctest.StartServerClient(server)
 	require.NoError(t, err)
-	defer conn.Close()
-	client := pb.NewHTTPProxyClient(conn)
+	defer sc.Close()
+
+	//util.Info("grpc server listening on:", sc.Addr.String())
+
+	client := pb.NewHTTPProxyClient(sc.Conn)
 
 	if false {
 		for range iter.N(10) {
