@@ -1,5 +1,8 @@
 package healthcheck
 
-type HealthcheckType map[string]interface{}
-
-var Version = "version_hash"
+type HealthcheckType struct {
+	App           string `json:"app"`
+	Uptime        string `json:"uptime"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
+	Version       string `json:"version"`
+}

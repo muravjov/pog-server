@@ -3,9 +3,11 @@ package main
 import (
 	"net"
 	"os"
+	"time"
 
 	"git.catbo.net/muravjov/go2023/grpcapi"
 	"git.catbo.net/muravjov/go2023/grpcproxy"
+	"git.catbo.net/muravjov/go2023/healthcheck"
 	"git.catbo.net/muravjov/go2023/util"
 	"google.golang.org/grpc"
 )
@@ -23,6 +25,7 @@ var Version = "dev"
 
 func Main() bool {
 	util.Infof("proxy-over-grpc server, version: %s", Version)
+	startTimestamp := time.Now()
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -40,6 +43,7 @@ func Main() bool {
 
 	server := grpc.NewServer()
 	grpcproxy.RegisterProxySvc(server)
+	healthcheck.RegisterHealthcheckSvc(server, "proxy-over-grpc server", startTimestamp, Version)
 
 	return grpcapi.StartAndStop(server, listener, func() {})
 }

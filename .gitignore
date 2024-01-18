@@ -2,3 +2,5 @@
 
 /client
 /server
+
+/grpcproxy-server-log

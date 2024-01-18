@@ -9,10 +9,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-func RegisterHealthcheckSvc(server *grpc.Server, appName string, startTimestamp time.Time) {
+func RegisterHealthcheckSvc(server *grpc.Server, appName string, startTimestamp time.Time, version string) {
 	svc := &healthcheckServer{
 		appName:        appName,
 		startTimestamp: startTimestamp,
+		version:        version,
 	}
 	pb.RegisterHealthcheckServer(server, svc)
 }
@@ -20,6 +21,7 @@ func RegisterHealthcheckSvc(server *grpc.Server, appName string, startTimestamp 
 type healthcheckServer struct {
 	appName        string
 	startTimestamp time.Time
+	version        string
 
 	pb.UnimplementedHealthcheckServer
 }
@@ -27,10 +29,10 @@ type healthcheckServer struct {
 func (s *healthcheckServer) Invoke(context.Context, *pb.Request) (*pb.Response, error) {
 	uptime := time.Since(s.startTimestamp)
 	m := HealthcheckType{
-		"version":        Version,
-		"app":            s.appName,
-		"uptime_seconds": int64(uptime.Seconds()),
-		"uptime":         uptime.String(),
+		Version:       s.version,
+		App:           s.appName,
+		UptimeSeconds: int64(uptime.Seconds()),
+		Uptime:        uptime.String(),
 	}
 
 	jsonBytes, err := json.Marshal(m)

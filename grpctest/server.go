@@ -41,6 +41,12 @@ func (s *ServerClient) Close() {
 	s.s.Stop()
 }
 
+func DialInsecure(serverAddr string) (*grpc.ClientConn, error) {
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return grpc.Dial(serverAddr, opts...)
+}
+
 func StartServerClient(server *grpc.Server) (*ServerClient, error) {
 	s := grpcapi.NewServer(server)
 
@@ -50,9 +56,7 @@ func StartServerClient(server *grpc.Server) (*ServerClient, error) {
 
 	serverAddr := listener.Addr().String()
 
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	conn, err := grpc.Dial(serverAddr, opts...)
+	conn, err := DialInsecure(serverAddr)
 	if err != nil {
 		s.Stop()
 		return nil, err
