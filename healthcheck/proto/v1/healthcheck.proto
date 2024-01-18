@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option go_package = "git.catbo.net/muravjov/go2023/healthcheck/proto/v1";
+
+service Healthcheck {
+  rpc Invoke(Request) returns (Response) {}
+}
+
+message Request {
+}
+
+message Response {
+  string data = 1;
+}
