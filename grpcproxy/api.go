@@ -144,14 +144,16 @@ func (t *streamReader) Read(p []byte) (int, error) {
 	return t.buf.Read(p)
 }
 
-func handleBinaryTunneling(stream Stream, conn net.Conn, cancel context.CancelFunc) {
+func handleBinaryTunneling(stream Stream, conn net.Conn, streamCancel context.CancelFunc) {
 	var wg sync.WaitGroup
 
 	// when conn-side closes we close writer, and also we need to finish the transfer() goroutine
 	// with the reader => we use `cancel` func to close the stream (client) or initiate close action
 	// (server: get out of grpc operation loop)
-	transfer(NewStreamWriter(stream), conn, &wg, cancel)
-	transfer(conn, NewStreamReader(stream), &wg, nil)
+	transfer(NewStreamWriter(stream), conn, &wg, streamCancel)
+	transfer(conn, NewStreamReader(stream), &wg, func() {
+		conn.Close()
+	})
 
 	wg.Wait()
 }
