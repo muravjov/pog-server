@@ -7,6 +7,7 @@ import (
 
 	"git.catbo.net/muravjov/go2023/grpcapi"
 	"git.catbo.net/muravjov/go2023/grpcproxy"
+	"git.catbo.net/muravjov/go2023/gstacks"
 	"git.catbo.net/muravjov/go2023/healthcheck"
 	"git.catbo.net/muravjov/go2023/util"
 	"google.golang.org/grpc"
@@ -44,6 +45,7 @@ func Main() bool {
 	server := grpc.NewServer()
 	grpcproxy.RegisterProxySvc(server)
 	healthcheck.RegisterHealthcheckSvc(server, "proxy-over-grpc server", startTimestamp, Version)
+	gstacks.RegisterGStacksSvc(server)
 
 	return grpcapi.StartAndStop(server, listener, func() {})
 }

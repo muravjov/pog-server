@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-option go_package = "git.catbo.net/muravjov/go2023/healthcheck/proto/v1";
-package healthcheck;
+option go_package = "git.catbo.net/muravjov/go2023/gstacks/proto/v1";
+package gstacks;
 
-service Healthcheck {
+service GoroutineStacks {
   rpc Invoke(Request) returns (Response) {}
 }
 

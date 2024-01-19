@@ -4,3 +4,4 @@
 /server
 
 /grpcproxy-server-log
+/grpcproxy-client-log
