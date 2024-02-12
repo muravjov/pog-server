@@ -2,8 +2,10 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -41,6 +43,17 @@ func Main() bool {
 			InsecureSkipVerify: cfg.SkipVerify,
 		})
 		opts = append(opts, grpc.WithTransportCredentials(cred))
+	}
+
+	if cfg.ClientPOGAuth != "" {
+		starredCreds := cfg.ClientPOGAuth
+		i := strings.Index(starredCreds, ":")
+		if i > 0 {
+			starredCreds = fmt.Sprintf("%s:***", starredCreds[:i])
+		}
+		util.Infof("using client-server auth %s", starredCreds)
+
+		opts = append(opts, grpc.WithPerRPCCredentials(grpcproxy.BasicAuthCredentials{Auth: cfg.ClientPOGAuth}))
 	}
 
 	conn, err := grpc.Dial(cfg.ServerAddr, opts...)

@@ -38,6 +38,9 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 			if status.Code(err) == codes.Unavailable {
 				code = http.StatusServiceUnavailable
 			}
+			if status.Code(err) == codes.Unauthenticated {
+				code = http.StatusServiceUnavailable
+			}
 		}
 
 		errMsg = fmt.Sprintf(errMsg, a...)

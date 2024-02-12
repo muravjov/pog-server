@@ -42,7 +42,15 @@ func Main() bool {
 		return false
 	}
 
-	server := grpc.NewServer()
+	opts := []grpc.ServerOption{}
+
+	authLst := grpcproxy.ParseAuthList()
+	if len(authLst) > 0 {
+		ai := &grpcproxy.AuthInterceptor{AuthLst: authLst}
+		opts = append(opts, grpc.ChainUnaryInterceptor(ai.ProcessUnary), grpc.ChainStreamInterceptor(ai.ProcessStream))
+	}
+
+	server := grpc.NewServer(opts...)
 	grpcproxy.RegisterProxySvc(server)
 	healthcheck.RegisterHealthcheckSvc(server, "proxy-over-grpc server", startTimestamp, Version)
 	gstacks.RegisterGStacksSvc(server)

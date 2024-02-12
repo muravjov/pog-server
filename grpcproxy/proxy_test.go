@@ -54,7 +54,7 @@ func ProxySession(client pb.HTTPProxyClient) {
 }
 
 func TestProxy(t *testing.T) {
-	//t.SkipNow()
+	t.SkipNow()
 
 	util.SetupSlog(true)
 

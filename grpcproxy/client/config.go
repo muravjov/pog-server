@@ -11,6 +11,8 @@ type Config struct {
 	SkipVerify bool   // Skip server hostname verification in SSL validation [false]
 
 	ClientListen string // this proxy-over-grpc client address to listen to [host]:port
+
+	ClientPOGAuth string // auth string to connect to server, in the form user:password
 }
 
 func MakeConfig() Config {
@@ -23,6 +25,7 @@ func MakeConfig() Config {
 	util.BoolEnv(&cfg.SkipVerify, "SKIP_VERIFY", false)
 
 	util.StringEnv(&cfg.ClientListen, "CLIENT_LISTEN", ":18080")
+	util.StringEnv(&cfg.ClientPOGAuth, "CLIENT_POG_AUTH", "")
 
 	return cfg
 }
