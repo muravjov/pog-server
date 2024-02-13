@@ -54,7 +54,7 @@ func ProxySession(client pb.HTTPProxyClient) {
 }
 
 func TestProxy(t *testing.T) {
-	t.SkipNow()
+	//t.SkipNow()
 
 	util.SetupSlog(true)
 
@@ -98,6 +98,8 @@ func TestProxy(t *testing.T) {
 				var proxy *url.URL
 				proxy, err := url.Parse(u)
 				require.NoError(t, err)
+
+				proxy.User = url.UserPassword("user", "password")
 
 				return proxy, nil
 			},

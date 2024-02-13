@@ -163,3 +163,18 @@ func (ts BasicAuthCredentials) GetRequestMetadata(ctx context.Context, uri ...st
 func (ts BasicAuthCredentials) RequireTransportSecurity() bool {
 	return false
 }
+
+func GenAuthItem(name string, pass string, timeToLive time.Duration) string {
+	hash, _ := hashPassword(pass)
+
+	expirationDate := time.Now().UTC().Add(timeToLive)
+
+	b, _ := json.Marshal(AuthItem{
+		Name:       name,
+		Hash:       hash,
+		ExpDateStr: expirationDate.Format(time.RFC3339),
+	})
+	fmt.Println(string(b))
+
+	return hash
+}
