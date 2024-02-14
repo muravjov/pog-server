@@ -125,7 +125,7 @@ func doPasswordsMatch(hashedPassword, currPassword string) bool {
 const POGAuthEnvVarPrefix = "POG_AUTH_"
 const ClientAuthEnvVarPrefix = "CLIENT_AUTH_"
 
-func ParseAuthList(envVarPrefix string) []AuthItem {
+func ParseAuthList(envVarPrefix string) ([]AuthItem, error) {
 	lst := []AuthItem{}
 	for _, e := range os.Environ() {
 		i := strings.Index(e, "=")
@@ -142,14 +142,16 @@ func ParseAuthList(envVarPrefix string) []AuthItem {
 
 		var ai AuthItem
 		if err := json.Unmarshal([]byte(value), &ai); err != nil {
-			util.Errorf("failed to parse %v auth item: %v", key, err)
-			continue
+			err = fmt.Errorf("failed to parse %v auth item: %v", key, err)
+			util.Error(err)
+			return nil, err
 		}
 
 		expDate, err := time.Parse(time.RFC3339, ai.ExpDateStr)
 		if err != nil {
-			util.Errorf("failed to parse exp_date for %v auth item: %v", key, err)
-			continue
+			err = fmt.Errorf("failed to parse exp_date for %v auth item: %v", key, err)
+			util.Error(err)
+			return nil, err
 		}
 
 		ai.ExpDate = expDate
@@ -157,7 +159,7 @@ func ParseAuthList(envVarPrefix string) []AuthItem {
 		lst = append(lst, ai)
 	}
 
-	return lst
+	return lst, nil
 }
 
 type BasicAuthCredentials struct {

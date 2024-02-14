@@ -63,7 +63,10 @@ func Main() bool {
 	}
 	defer conn.Close()
 	client := pb.NewHTTPProxyClient(conn)
-	pcc := grpcproxy.NewProxyClientContext(client)
+	pcc, err := grpcproxy.NewProxyClientContext(client)
+	if err != nil {
+		return false
+	}
 
 	server := &http.Server{
 		Addr: cfg.ClientListen,

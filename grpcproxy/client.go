@@ -144,10 +144,13 @@ type ProxyClientContext struct {
 	AuthLst []AuthItem
 }
 
-func NewProxyClientContext(client pb.HTTPProxyClient) *ProxyClientContext {
+func NewProxyClientContext(client pb.HTTPProxyClient) (*ProxyClientContext, error) {
+	authLst, err := ParseAuthList(ClientAuthEnvVarPrefix)
+	if err != nil {
+		return nil, err
+	}
 	return &ProxyClientContext{
 		Client:  client,
-		AuthLst: ParseAuthList(ClientAuthEnvVarPrefix),
-	}
-
+		AuthLst: authLst,
+	}, nil
 }

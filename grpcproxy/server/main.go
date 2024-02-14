@@ -44,7 +44,11 @@ func Main() bool {
 
 	opts := []grpc.ServerOption{}
 
-	authLst := grpcproxy.ParseAuthList(grpcproxy.POGAuthEnvVarPrefix)
+	authLst, err := grpcproxy.ParseAuthList(grpcproxy.POGAuthEnvVarPrefix)
+	if err != nil {
+		return false
+	}
+
 	if len(authLst) > 0 {
 		ai := &grpcproxy.AuthInterceptor{AuthLst: authLst}
 		opts = append(opts, grpc.ChainUnaryInterceptor(ai.ProcessUnary), grpc.ChainStreamInterceptor(ai.ProcessStream))

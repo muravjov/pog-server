@@ -82,7 +82,8 @@ func TestProxy(t *testing.T) {
 		u = "https://ifconfig.me1"
 	}
 
-	pcc := NewProxyClientContext(client)
+	pcc, err := NewProxyClientContext(client)
+	require.NoError(t, err)
 
 	if true {
 		endpoint := util.Endpoint{
