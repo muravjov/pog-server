@@ -24,6 +24,6 @@ func TestPOG_AUTH_var(t *testing.T) {
 func TestPOG_AUTHParsing(t *testing.T) {
 	t.SkipNow()
 
-	lst := ParseAuthList()
+	lst := ParseAuthList(POGAuthEnvVarPrefix)
 	util.DumpIndent(lst)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -22,11 +21,8 @@ var (
 	errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata")
 )
 
-func isAuthenticated(authorization []string, authLst []AuthItem) (err error) {
-	if len(authorization) < 1 {
-		return errors.New("received empty authorization token from client")
-	}
-	tokenBase64 := strings.TrimPrefix(authorization[0], "Basic ")
+func isAuthenticated(authorization string, authLst []AuthItem) (err error) {
+	tokenBase64 := strings.TrimPrefix(authorization, "Basic ")
 
 	b, err := base64.StdEncoding.DecodeString(tokenBase64)
 	if err != nil {
@@ -69,7 +65,13 @@ func doAuth(ctx context.Context, authLst []AuthItem) error {
 	if !ok {
 		return errMissingMetadata
 	}
-	err := isAuthenticated(md["authorization"], authLst)
+
+	authorization := md["authorization"]
+	if len(authorization) < 1 {
+		return status.Error(codes.Unauthenticated, "received empty authorization token from client")
+	}
+
+	err := isAuthenticated(authorization[0], authLst)
 	if err != nil {
 		return status.Error(codes.Unauthenticated, err.Error())
 	}
@@ -113,7 +115,10 @@ func doPasswordsMatch(hashedPassword, currPassword string) bool {
 	return err == nil
 }
 
-func ParseAuthList() []AuthItem {
+const POGAuthEnvVarPrefix = "POG_AUTH_"
+const ClientAuthEnvVarPrefix = "CLIENT_AUTH_"
+
+func ParseAuthList(envVarPrefix string) []AuthItem {
 	lst := []AuthItem{}
 	for _, e := range os.Environ() {
 		i := strings.Index(e, "=")
@@ -124,7 +129,7 @@ func ParseAuthList() []AuthItem {
 		key := e[:i]
 		value := e[i+1:]
 
-		if !strings.HasPrefix(key, "POG_AUTH_") {
+		if !strings.HasPrefix(key, envVarPrefix) {
 			continue
 		}
 

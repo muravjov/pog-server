@@ -63,11 +63,12 @@ func Main() bool {
 	}
 	defer conn.Close()
 	client := pb.NewHTTPProxyClient(conn)
+	pcc := grpcproxy.NewProxyClientContext(client)
 
 	server := &http.Server{
 		Addr: cfg.ClientListen,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			grpcproxy.ProxyHandler(w, r, client)
+			grpcproxy.ProxyHandler(w, r, pcc)
 		}),
 		// Disable HTTP/2.
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),

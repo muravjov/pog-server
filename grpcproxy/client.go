@@ -23,7 +23,20 @@ func httpError(w http.ResponseWriter, errMsg string, code int) {
 	fmt.Fprintln(w, errMsg)
 }
 
-func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
+func checkProxyAuth(r *http.Request, authLst []AuthItem) error {
+	if len(authLst) == 0 {
+		return nil
+	}
+
+	value, ok := r.Header["Proxy-Authorization"]
+	if !ok {
+		return fmt.Errorf("Proxy-Authorization header required")
+	}
+
+	return isAuthenticated(value[0], authLst)
+}
+
+func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientContext) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -47,6 +60,14 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 
 		httpError(w, errMsg, code)
 	}
+
+	if err := checkProxyAuth(r, pcc.AuthLst); err != nil {
+		w.Header().Set("Proxy-Authenticate", `Basic realm="CLIENT_AUTH_* list"`)
+		httpError(w, err.Error(), http.StatusProxyAuthRequired)
+		return
+	}
+
+	client := pcc.Client
 
 	stream, err := client.Run(ctx)
 	if err != nil {
@@ -107,13 +128,26 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, client pb.HTTPProxy
 	handleBinaryTunneling(stream, clientConn, cancel)
 }
 
-func ProxyHandler(w http.ResponseWriter, r *http.Request, client pb.HTTPProxyClient) {
+func ProxyHandler(w http.ResponseWriter, r *http.Request, pcc *ProxyClientContext) {
 	if r.Method == http.MethodConnect {
-		handleTunneling(w, r, client)
+		handleTunneling(w, r, pcc)
 		return
 	}
 
 	// :TODO:
 	//handleHTTP(w, r, client)
 	httpError(w, "Not implemented", http.StatusNotImplemented)
+}
+
+type ProxyClientContext struct {
+	Client  pb.HTTPProxyClient
+	AuthLst []AuthItem
+}
+
+func NewProxyClientContext(client pb.HTTPProxyClient) *ProxyClientContext {
+	return &ProxyClientContext{
+		Client:  client,
+		AuthLst: ParseAuthList(ClientAuthEnvVarPrefix),
+	}
+
 }

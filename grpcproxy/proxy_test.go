@@ -82,12 +82,14 @@ func TestProxy(t *testing.T) {
 		u = "https://ifconfig.me1"
 	}
 
+	pcc := NewProxyClientContext(client)
+
 	if true {
 		endpoint := util.Endpoint{
 			URL: u,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				//proxy.ProxyHandler(w, r)
-				ProxyHandler(w, r, client)
+				ProxyHandler(w, r, pcc)
 			},
 		}
 
@@ -99,7 +101,11 @@ func TestProxy(t *testing.T) {
 				proxy, err := url.Parse(u)
 				require.NoError(t, err)
 
-				proxy.User = url.UserPassword("user", "password")
+				// 407
+				//proxy.User = url.UserPassword("user", "password")
+
+				// success
+				proxy.User = url.UserPassword("user2", "user2")
 
 				return proxy, nil
 			},
@@ -107,5 +113,4 @@ func TestProxy(t *testing.T) {
 
 		util.InvokeEndpoint(&endpoint, false, t)
 	}
-
 }
