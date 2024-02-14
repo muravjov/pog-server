@@ -112,6 +112,13 @@ func hashPassword(password string) (string, error) {
 func doPasswordsMatch(hashedPassword, currPassword string) bool {
 	err := bcrypt.CompareHashAndPassword(
 		[]byte(hashedPassword), []byte(currPassword))
+
+	if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
+		// godotenv utility expands values of env variable if
+		// they are not enclosed into '' or "" => bcrypt values are being cut badly
+		util.Errorf("Oops (invalid hash?): err='%v', hash='%v', pass='%v'", err, hashedPassword, "***")
+	}
+
 	return err == nil
 }
 
