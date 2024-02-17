@@ -10,6 +10,7 @@ import (
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/util"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -144,7 +145,16 @@ func (t *streamReader) Read(p []byte) (int, error) {
 	return t.buf.Read(p)
 }
 
+var tunnelingConnections = util.NewGaugeVecMetric(
+	"tunnelling_connections_total",
+	"Number of connections tunneling through the proxy.",
+	[]string{},
+).With(prometheus.Labels{})
+
 func handleBinaryTunneling(stream Stream, conn net.Conn, streamCancel context.CancelFunc) {
+	tunnelingConnections.Inc()
+	defer tunnelingConnections.Dec()
+
 	var wg sync.WaitGroup
 
 	// when conn-side closes we close writer, and also we need to finish the transfer() goroutine
