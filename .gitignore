@@ -5,3 +5,5 @@
 
 /grpcproxy-server-log
 /grpcproxy-client-log
+
+__debug_bin*
