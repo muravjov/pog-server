@@ -44,16 +44,9 @@ func Main() bool {
 	util.Infof("starting on port %s", port)
 	util.Infof("PID: %v", os.Getpid())
 
-	cfg := struct {
-		GRPCAndHTTPMux     bool
-		GRPCBuiltinMetrics bool
-	}{}
-	util.BoolEnv(&cfg.GRPCAndHTTPMux, "GRPC_AND_HTTP_MUX", true)
-	util.BoolEnv(&cfg.GRPCBuiltinMetrics, "GRPC_BUILTIN_METRICS", true)
-
 	opts := []grpc.ServerOption{}
 
-	if cfg.GRPCBuiltinMetrics {
+	if grpcproxy.IsGRPCBuiltinMetricsEnabled() {
 		unregister, err := grpcproxy.EnableGRPCServerMetrics(opts, appRegisterer)
 		if err != nil {
 			return false
@@ -78,7 +71,9 @@ func Main() bool {
 
 	serverListen := ":" + port
 
-	if cfg.GRPCAndHTTPMux {
+	var grpcAndHTTPMux bool
+	util.BoolEnv(&grpcAndHTTPMux, "GRPC_AND_HTTP_MUX", true)
+	if grpcAndHTTPMux {
 		httpMux := grpcproxy.NewMetricsMux(appRegisterer)
 
 		mixedHandler := newHTTPandGRPCMux(httpMux, server)

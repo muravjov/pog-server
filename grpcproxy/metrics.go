@@ -37,25 +37,30 @@ func HandleMux(w http.ResponseWriter, r *http.Request, mux *http.ServeMux) bool 
 	return true
 }
 
+// how it works:
+// - opencensus.ServerOption() enables grpc.StatsHandler to go to census meaures at
+//   google.golang.org/grpc/stats/opencensus@v1.0.0/server_metrics.go
+// - opencensus.DefaultServerViews is a list of metrics (in Prometheus terms)
+// - view.Register(opencensus.DefaultServerViews) registers metrics to start collecting metrics
+//   (as registry.Register() for Prometheus)
+// - promexporter.NewExporter(appRegisterer) registers opencensus metrics in Prometheus
+//   (basically appRegisterer.Register(collector)), see at
+//    contrib.go.opencensus.io/exporter/prometheus@v0.4.2/prometheus.go)
+
 func EnableGRPCServerMetrics(opts []grpc.ServerOption, appRegisterer *prometheus.Registry) (func(), error) {
-	// how it works:
-	// - opencensus.ServerOption() enables grpc.StatsHandler to go to census meaures at
-	//   google.golang.org/grpc/stats/opencensus@v1.0.0/server_metrics.go
-	// - opencensus.DefaultServerViews is a list of metrics (in Prometheus terms)
-	// - view.Register(opencensus.DefaultServerViews) registers metrics to start collecting metrics
-	//   (as registry.Register() for Prometheus)
-	// - promexporter.NewExporter(appRegisterer) registers opencensus metrics in Prometheus
-	//   (basically appRegisterer.Register(collector)), see at
-	//    /Users/ilya/opt/programming/golang/base-1.21.3/pkg/mod/contrib.go.opencensus.io/exporter/prometheus@v0.4.2/prometheus.go)
 	opts = append(opts, opencensus.ServerOption(opencensus.TraceOptions{DisableTrace: true}))
 
+	return enableMetrics(opencensus.DefaultServerViews, appRegisterer)
+}
+
+func enableMetrics(metricsLst []*view.View, appRegisterer *prometheus.Registry) (func(), error) {
 	exporter, err := promexporter.NewExporter(promexporter.Options{Registry: appRegisterer})
 	if err != nil {
 		util.Errorf("promexporter.NewExporter failed: %v", err)
 		return nil, err
 	}
 
-	if err := view.Register(opencensus.DefaultServerViews...); err != nil {
+	if err := view.Register(metricsLst...); err != nil {
 		util.Errorf("view.Register failed: %v", err)
 		return nil, err
 	}
@@ -66,6 +71,18 @@ func EnableGRPCServerMetrics(opts []grpc.ServerOption, appRegisterer *prometheus
 	_ = exporter
 
 	return func() {
-		view.Unregister(opencensus.DefaultServerViews...)
+		view.Unregister(metricsLst...)
 	}, nil
+}
+
+func IsGRPCBuiltinMetricsEnabled() bool {
+	var b bool
+	util.BoolEnv(&b, "GRPC_BUILTIN_METRICS", true)
+	return b
+}
+
+func EnableGRPCClientMetrics(opts []grpc.DialOption, appRegisterer *prometheus.Registry) (func(), error) {
+	opts = append(opts, opencensus.DialOption(opencensus.TraceOptions{DisableTrace: true}))
+
+	return enableMetrics(opencensus.DefaultClientViews, appRegisterer)
 }

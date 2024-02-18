@@ -33,6 +33,15 @@ func Main() bool {
 	cfg := MakeConfig()
 
 	var opts []grpc.DialOption
+
+	if grpcproxy.IsGRPCBuiltinMetricsEnabled() {
+		unregister, err := grpcproxy.EnableGRPCClientMetrics(opts, appRegisterer)
+		if err != nil {
+			return false
+		}
+		defer unregister()
+	}
+
 	if cfg.ServerAddr == "" {
 		util.Error("-server is empty")
 		return false
