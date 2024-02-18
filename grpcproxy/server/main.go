@@ -8,7 +8,6 @@ import (
 
 	promexporter "contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opencensus.io/stats/view"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -105,12 +104,7 @@ func Main() bool {
 	serverListen := ":" + port
 
 	if cfg.GRPCAndHTTPMux {
-		httpMux := http.NewServeMux()
-
-		httpMux.HandleFunc("/metrics", promhttp.HandlerFor(
-			appRegisterer,
-			promhttp.HandlerOpts{EnableOpenMetrics: true},
-		).ServeHTTP)
+		httpMux := grpcproxy.NewMetricsMux(appRegisterer)
 
 		mixedHandler := newHTTPandGRPCMux(httpMux, server)
 		http2Server := &http2.Server{}

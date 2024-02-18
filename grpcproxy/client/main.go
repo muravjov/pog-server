@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -26,6 +27,9 @@ func main() {
 }
 
 func Main() bool {
+	appRegisterer := prometheus.NewRegistry()
+	util.TryRegisterAppMetrics(appRegisterer)
+
 	cfg := MakeConfig()
 
 	var opts []grpc.DialOption
@@ -67,6 +71,8 @@ func Main() bool {
 	if err != nil {
 		return false
 	}
+
+	pcc.MetricsMux = grpcproxy.NewMetricsMux(appRegisterer)
 
 	server := &http.Server{
 		Addr: cfg.ClientListen,

@@ -134,6 +134,10 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request, pcc *ProxyClientContex
 		return
 	}
 
+	if HandleMux(w, r, pcc.MetricsMux) {
+		return
+	}
+
 	// :TODO:
 	//handleHTTP(w, r, client)
 	httpError(w, "Not implemented", http.StatusNotImplemented)
@@ -142,6 +146,8 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request, pcc *ProxyClientContex
 type ProxyClientContext struct {
 	Client  pb.HTTPProxyClient
 	AuthLst []AuthItem
+
+	MetricsMux *http.ServeMux
 }
 
 func NewProxyClientContext(client pb.HTTPProxyClient) (*ProxyClientContext, error) {
