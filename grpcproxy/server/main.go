@@ -6,13 +6,10 @@ import (
 	"os"
 	"time"
 
-	promexporter "contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opencensus.io/stats/view"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/stats/opencensus"
 
 	"git.catbo.net/muravjov/go2023/grpcapi"
 	"git.catbo.net/muravjov/go2023/grpcproxy"
@@ -57,33 +54,11 @@ func Main() bool {
 	opts := []grpc.ServerOption{}
 
 	if cfg.GRPCBuiltinMetrics {
-		// how it works:
-		// - opencensus.ServerOption() enables grpc.StatsHandler to go to census meaures at
-		//   google.golang.org/grpc/stats/opencensus@v1.0.0/server_metrics.go
-		// - opencensus.DefaultServerViews is a list of metrics (in Prometheus terms)
-		// - view.Register(opencensus.DefaultServerViews) registers metrics to start collecting metrics
-		//   (as registry.Register() for Prometheus)
-		// - promexporter.NewExporter(appRegisterer) registers opencensus metrics in Prometheus
-		//   (basically appRegisterer.Register(collector)), see at
-		//    /Users/ilya/opt/programming/golang/base-1.21.3/pkg/mod/contrib.go.opencensus.io/exporter/prometheus@v0.4.2/prometheus.go)
-		opts = append(opts, opencensus.ServerOption(opencensus.TraceOptions{DisableTrace: true}))
-
-		exporter, err := promexporter.NewExporter(promexporter.Options{Registry: appRegisterer})
+		unregister, err := grpcproxy.EnableGRPCServerMetrics(opts, appRegisterer)
 		if err != nil {
-			util.Errorf("promexporter.NewExporter failed: %v", err)
 			return false
 		}
-
-		if err := view.Register(opencensus.DefaultServerViews...); err != nil {
-			util.Errorf("view.Register failed: %v", err)
-			return false
-		}
-		defer view.Unregister(opencensus.DefaultServerViews...)
-
-		// `Deprecated: in lieu of metricexport.Reader interface.` (for Prometheus exporter only)
-		//view.RegisterExporter(exporter)
-		//defer view.UnregisterExporter(exporter)
-		_ = exporter
+		defer unregister()
 	}
 
 	authLst, err := grpcproxy.ParseAuthList(grpcproxy.POGAuthEnvVarPrefix)
