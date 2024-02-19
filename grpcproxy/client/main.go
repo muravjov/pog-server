@@ -3,11 +3,14 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -83,7 +86,25 @@ func Main() bool {
 		return false
 	}
 
-	pcc.MetricsMux = grpcproxy.NewMetricsMux(appRegisterer)
+	pcc.MetricsMux = (func() *http.ServeMux {
+		var muxServerMetrics bool
+		util.BoolEnv(&muxServerMetrics, "MUX_SERVER_METRICS", false)
+		if !muxServerMetrics {
+			return grpcproxy.NewMetricsMux(appRegisterer)
+		}
+
+		httpMux := http.NewServeMux()
+		handler := promhttp.HandlerFor(
+			appRegisterer,
+			promhttp.HandlerOpts{EnableOpenMetrics: true},
+		).ServeHTTP
+
+		httpMux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			clientServerMetrics(w, r, metricsCtx{handler, cfg})
+		})
+
+		return httpMux
+	})()
 
 	server := &http.Server{
 		Addr: cfg.ClientListen,
@@ -98,4 +119,53 @@ func Main() bool {
 	util.Infof("PID: %v", os.Getpid())
 
 	return util.ListenAndServe(server, func() {})
+}
+
+var metricsMuxErrCnt = util.MakeCounterVecFunc(
+	"server_client_metrics_mux_errors_total",
+	"Number of errors while getting pog server's /metrics",
+)
+
+type metricsCtx struct {
+	PromHandler http.HandlerFunc
+	Cfg         Config
+}
+
+func clientServerMetrics(w http.ResponseWriter, r *http.Request, metricsCtx metricsCtx) {
+	metricsCtx.PromHandler(w, r)
+
+	metric := dto.Metric{}
+	grpcproxy.TunnelingConnections.Write(&metric)
+	if metric.GetGauge().GetValue() == 0 {
+		return
+	}
+
+	cfg := metricsCtx.Cfg
+
+	// ok, we are working => pog server is up anyway
+	schema := "https"
+	if metricsCtx.Cfg.Insecure {
+		schema = "http"
+	}
+
+	u := fmt.Sprintf("%s://%s/metrics", schema, cfg.ServerAddr)
+
+	resp, err := http.Get(u)
+	if err != nil {
+		metricsMuxErrCnt("GET", 1)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		metricsMuxErrCnt("not_2XX", 1)
+		return
+	}
+
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		metricsMuxErrCnt("copy", 1)
+		return
+	}
+
+	metricsMuxErrCnt("ok", 1)
 }

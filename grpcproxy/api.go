@@ -145,15 +145,15 @@ func (t *streamReader) Read(p []byte) (int, error) {
 	return t.buf.Read(p)
 }
 
-var tunnelingConnections = util.NewGaugeVecMetric(
+var TunnelingConnections = util.NewGaugeVecMetric(
 	"tunnelling_connections_total",
 	"Number of connections tunneling through the proxy.",
 	[]string{},
 ).With(prometheus.Labels{})
 
 func handleBinaryTunneling(stream Stream, conn net.Conn, streamCancel context.CancelFunc) {
-	tunnelingConnections.Inc()
-	defer tunnelingConnections.Dec()
+	TunnelingConnections.Inc()
+	defer TunnelingConnections.Dec()
 
 	var wg sync.WaitGroup
 

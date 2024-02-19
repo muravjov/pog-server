@@ -1,6 +1,8 @@
 package util
 
 import (
+	"os"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -17,11 +19,14 @@ func TryRegisterAppMetrics(r prometheus.Registerer) {
 	}
 }
 
+var MetricNamespace = os.Getenv("METRIC_NAMESPACE")
+
 func NewCounterVec(name, help string, labelNames []string) *prometheus.CounterVec {
 	return prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: name,
-			Help: help,
+			Name:      name,
+			Help:      help,
+			Namespace: MetricNamespace,
 		},
 		labelNames,
 	)
@@ -47,8 +52,9 @@ func MakeCounterVecFunc(name, help string) func(name string, cnt int) {
 
 func NewGaugeVec(name, help string, labelNames []string) *prometheus.GaugeVec {
 	return prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: name,
-		Help: help,
+		Name:      name,
+		Help:      help,
+		Namespace: MetricNamespace,
 	}, labelNames)
 }
 
@@ -84,6 +90,7 @@ func newSummaryVecWithObjectives(name, help string, labelNames []string, objecti
 		Name:       name,
 		Help:       help,
 		Objectives: objectives,
+		Namespace:  MetricNamespace,
 	}, labelNames)
 }
 
