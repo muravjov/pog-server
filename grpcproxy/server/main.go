@@ -47,7 +47,9 @@ func Main() bool {
 	opts := []grpc.ServerOption{}
 
 	if grpcproxy.IsGRPCBuiltinMetricsEnabled() {
-		unregister, err := grpcproxy.EnableGRPCServerMetrics(opts, appRegisterer)
+		opts = append(opts, grpcproxy.ServerStatsOption())
+
+		unregister, err := grpcproxy.EnableGRPCServerMetrics(appRegisterer)
 		if err != nil {
 			return false
 		}

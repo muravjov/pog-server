@@ -35,7 +35,9 @@ func Main() bool {
 	var opts []grpc.DialOption
 
 	if grpcproxy.IsGRPCBuiltinMetricsEnabled() {
-		unregister, err := grpcproxy.EnableGRPCClientMetrics(opts, appRegisterer)
+		opts = append(opts, grpcproxy.ClientStatsOption())
+
+		unregister, err := grpcproxy.EnableGRPCClientMetrics(appRegisterer)
 		if err != nil {
 			return false
 		}

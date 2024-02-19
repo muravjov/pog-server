@@ -47,9 +47,11 @@ func HandleMux(w http.ResponseWriter, r *http.Request, mux *http.ServeMux) bool 
 //   (basically appRegisterer.Register(collector)), see at
 //    contrib.go.opencensus.io/exporter/prometheus@v0.4.2/prometheus.go)
 
-func EnableGRPCServerMetrics(opts []grpc.ServerOption, appRegisterer *prometheus.Registry) (func(), error) {
-	opts = append(opts, opencensus.ServerOption(opencensus.TraceOptions{DisableTrace: true}))
+func ServerStatsOption() grpc.ServerOption {
+	return opencensus.ServerOption(opencensus.TraceOptions{DisableTrace: true})
+}
 
+func EnableGRPCServerMetrics(appRegisterer *prometheus.Registry) (func(), error) {
 	return enableMetrics(opencensus.DefaultServerViews, appRegisterer)
 }
 
@@ -81,8 +83,10 @@ func IsGRPCBuiltinMetricsEnabled() bool {
 	return b
 }
 
-func EnableGRPCClientMetrics(opts []grpc.DialOption, appRegisterer *prometheus.Registry) (func(), error) {
-	opts = append(opts, opencensus.DialOption(opencensus.TraceOptions{DisableTrace: true}))
+func ClientStatsOption() grpc.DialOption {
+	return opencensus.DialOption(opencensus.TraceOptions{DisableTrace: true})
+}
 
+func EnableGRPCClientMetrics(appRegisterer *prometheus.Registry) (func(), error) {
 	return enableMetrics(opencensus.DefaultClientViews, appRegisterer)
 }
