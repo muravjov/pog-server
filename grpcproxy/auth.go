@@ -50,7 +50,7 @@ func isAuthenticated(authorization string, authLst []AuthItem) (string, error) {
 			return "", fmt.Errorf("expired user account")
 		}
 
-		return "", nil
+		return aui.Name, nil
 	}
 
 	return "", fmt.Errorf("wrong user and/or password")
