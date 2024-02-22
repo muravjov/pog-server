@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"git.catbo.net/muravjov/go2023/util"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -184,8 +185,25 @@ func ParseAuthList(envVarPrefix string) ([]AuthItem, error) {
 		lst = append(lst, ai)
 	}
 
+	if len(lst) > 0 {
+		var earliestExpire time.Time
+		for _, item := range lst {
+			if earliestExpire.IsZero() || item.ExpDate.Before(earliestExpire) {
+				earliestExpire = item.ExpDate
+			}
+		}
+
+		authItemEarliestExpire.With(prometheus.Labels{"name": envVarPrefix}).Set(float64(earliestExpire.Unix()))
+	}
+
 	return lst, nil
 }
+
+var authItemEarliestExpire = util.NewGaugeVecMetric(
+	"auth_item_earliest_expiry",
+	"Returns earliest auth item expiry in unixtime",
+	[]string{"name"},
+)
 
 type BasicAuthCredentials struct {
 	Auth string
