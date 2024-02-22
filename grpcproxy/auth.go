@@ -21,18 +21,18 @@ var (
 	errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata")
 )
 
-func isAuthenticated(authorization string, authLst []AuthItem) (err error) {
+func isAuthenticated(authorization string, authLst []AuthItem) (string, error) {
 	tokenBase64 := strings.TrimPrefix(authorization, "Basic ")
 
 	b, err := base64.StdEncoding.DecodeString(tokenBase64)
 	if err != nil {
-		return fmt.Errorf("base64 decoding of received token %q: %v", tokenBase64, err)
+		return "", fmt.Errorf("base64 decoding of received token %q: %v", tokenBase64, err)
 	}
 
 	creds := string(b)
 	i := strings.Index(creds, ":")
 	if i < 0 {
-		return fmt.Errorf("token %q misses ':' for the formatting user:password", tokenBase64)
+		return "", fmt.Errorf("token %q misses ':' for the formatting user:password", tokenBase64)
 	}
 	user := creds[:i]
 	pass := creds[i+1:]
@@ -43,56 +43,81 @@ func isAuthenticated(authorization string, authLst []AuthItem) (err error) {
 		}
 
 		if ok := doPasswordsMatch(aui.Hash, pass); !ok {
-			return fmt.Errorf("wrong user and/or password")
+			return "", fmt.Errorf("wrong user and/or password")
 		}
 
 		if aui.ExpDate.Before(time.Now()) {
-			return fmt.Errorf("expired user account")
+			return "", fmt.Errorf("expired user account")
 		}
 
-		return nil
+		return "", nil
 	}
 
-	return fmt.Errorf("wrong user and/or password")
+	return "", fmt.Errorf("wrong user and/or password")
 }
 
 type AuthInterceptor struct {
 	AuthLst []AuthItem
 }
 
-func doAuth(ctx context.Context, authLst []AuthItem) error {
+func doAuth(ctx context.Context, authLst []AuthItem) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return errMissingMetadata
+		return "", errMissingMetadata
 	}
 
 	authorization := md["authorization"]
 	if len(authorization) < 1 {
-		return status.Error(codes.Unauthenticated, "received empty authorization token from client")
+		return "", status.Error(codes.Unauthenticated, "received empty authorization token from client")
 	}
 
-	err := isAuthenticated(authorization[0], authLst)
+	user, err := isAuthenticated(authorization[0], authLst)
 	if err != nil {
-		return status.Error(codes.Unauthenticated, err.Error())
+		return user, status.Error(codes.Unauthenticated, err.Error())
 	}
 
-	return nil
+	return user, nil
 }
 
 func (ai *AuthInterceptor) ProcessUnary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	if err := doAuth(ctx, ai.AuthLst); err != nil {
+	if _, err := doAuth(ctx, ai.AuthLst); err != nil {
 		return nil, err
 	}
 
 	return handler(ctx, req)
 }
 
+type wrappedStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedStream) Context() context.Context {
+	return w.ctx
+}
+
+func newWrappedStream(ctx context.Context, s grpc.ServerStream) grpc.ServerStream {
+	return &wrappedStream{s, ctx}
+}
+
+type ConnectionAuthCtx struct {
+	User string
+}
+
+type connectionAuthKey struct{}
+
 func (ai *AuthInterceptor) ProcessStream(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	if err := doAuth(ss.Context(), ai.AuthLst); err != nil {
+	ctx := ss.Context()
+	user, err := doAuth(ctx, ai.AuthLst)
+	if err != nil {
 		return err
 	}
 
-	return handler(srv, ss)
+	ctx = context.WithValue(ctx, connectionAuthKey{}, ConnectionAuthCtx{
+		User: user,
+	})
+
+	return handler(srv, newWrappedStream(ctx, ss))
 }
 
 type AuthItem struct {

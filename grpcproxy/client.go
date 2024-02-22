@@ -23,14 +23,14 @@ func httpError(w http.ResponseWriter, errMsg string, code int) {
 	fmt.Fprintln(w, errMsg)
 }
 
-func checkProxyAuth(r *http.Request, authLst []AuthItem) error {
+func checkProxyAuth(r *http.Request, authLst []AuthItem) (string, error) {
 	if len(authLst) == 0 {
-		return nil
+		return "", nil
 	}
 
 	value, ok := r.Header["Proxy-Authorization"]
 	if !ok {
-		return fmt.Errorf("Proxy-Authorization header required")
+		return "", fmt.Errorf("Proxy-Authorization header required")
 	}
 
 	return isAuthenticated(value[0], authLst)
@@ -61,7 +61,7 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientCon
 		httpError(w, errMsg, code)
 	}
 
-	if err := checkProxyAuth(r, pcc.AuthLst); err != nil {
+	if _, err := checkProxyAuth(r, pcc.AuthLst); err != nil {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="CLIENT_AUTH_* list"`)
 		httpError(w, err.Error(), http.StatusProxyAuthRequired)
 		return
