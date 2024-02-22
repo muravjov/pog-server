@@ -3,6 +3,7 @@ package grpcproxy
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
 	"git.catbo.net/muravjov/go2023/util"
@@ -25,7 +26,7 @@ func httpError(w http.ResponseWriter, errMsg string, code int) {
 
 func checkProxyAuth(r *http.Request, authLst []AuthItem) (string, error) {
 	if len(authLst) == 0 {
-		return "", nil
+		return "anonymous", nil
 	}
 
 	value, ok := r.Header["Proxy-Authorization"]
@@ -39,6 +40,21 @@ func checkProxyAuth(r *http.Request, authLst []AuthItem) (string, error) {
 func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientContext) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	user := "-"
+	logReq := func(code int) {
+		logRequest(LogRecord{
+			ConnectAddr: r.Host,
+			User:        user,
+			RemoteAddr:  r.RemoteAddr,
+			Code:        strconv.Itoa(code),
+		})
+	}
+
+	httpErrorAndLog := func(w http.ResponseWriter, errMsg string, code int) {
+		httpError(w, errMsg, code)
+		logReq(code)
+	}
 
 	bailOut := func(errMsg string, a ...any) {
 		code := http.StatusInternalServerError
@@ -58,12 +74,13 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientCon
 
 		errMsg = fmt.Sprintf(errMsg, a...)
 
-		httpError(w, errMsg, code)
+		httpErrorAndLog(w, errMsg, code)
 	}
 
-	if _, err := checkProxyAuth(r, pcc.AuthLst); err != nil {
+	user, err := checkProxyAuth(r, pcc.AuthLst)
+	if err != nil {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="CLIENT_AUTH_* list"`)
-		httpError(w, err.Error(), http.StatusProxyAuthRequired)
+		httpErrorAndLog(w, err.Error(), http.StatusProxyAuthRequired)
 		return
 	}
 
@@ -106,7 +123,7 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientCon
 	}
 
 	if err := resp.ConnectResponse.Error; err != nil {
-		httpError(w, err.Error, int(err.StatusCode))
+		httpErrorAndLog(w, err.Error, int(err.StatusCode))
 		return
 	}
 
@@ -120,10 +137,11 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, pcc *ProxyClientCon
 
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
-		httpError(w, err.Error(), http.StatusServiceUnavailable)
+		httpErrorAndLog(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	defer clientConn.Close()
+	logReq(http.StatusOK)
 
 	handleBinaryTunneling(stream, clientConn, cancel)
 }

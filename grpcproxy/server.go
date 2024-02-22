@@ -30,6 +30,18 @@ func (s *httpProxyServer) Run(stream pb.HTTPProxy_RunServer) error {
 	return statusErr
 }
 
+type LogRecord struct {
+	ConnectAddr string
+	User        string
+	RemoteAddr  string
+	Code        string
+}
+
+func logRequest(rec LogRecord) {
+	connectProto := "HTTPS"
+	fmt.Printf("pog: %s %s %s %v [%v] %v\n", rec.ConnectAddr, rec.User, connectProto, rec.RemoteAddr, time.Now().Format(time.RFC3339), rec.Code)
+}
+
 func doRun(stream Stream, statusErr *error) {
 	user := "anonymous"
 	streamCtx := stream.(interface {
@@ -40,20 +52,24 @@ func doRun(stream Stream, statusErr *error) {
 	}
 
 	connectAddr := "-"
-	connectProto := "HTTPS"
 
-	logRequest := func(code codes.Code) {
-		remoteAddr := ""
+	logReq := func(code codes.Code) {
+		remoteAddr := "-"
 		if p, ok := peer.FromContext(streamCtx); ok {
 			remoteAddr = p.Addr.String()
 		}
 
-		fmt.Printf("pog: %s %s %s %v [%v] %v\n", connectAddr, user, connectProto, remoteAddr, time.Now().Format(time.RFC3339), code)
+		logRequest(LogRecord{
+			ConnectAddr: connectAddr,
+			User:        user,
+			RemoteAddr:  remoteAddr,
+			Code:        code.String(),
+		})
 	}
 
 	bailOut := func(err error) {
 		*statusErr = err
-		logRequest(status.Code(err))
+		logReq(status.Code(err))
 	}
 
 	packet, err := Recv(stream)
@@ -99,7 +115,7 @@ func doRun(stream Stream, statusErr *error) {
 		bailOut(err)
 		return
 	}
-	logRequest(codes.OK)
+	logReq(codes.OK)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
