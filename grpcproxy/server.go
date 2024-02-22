@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	pb "git.catbo.net/muravjov/go2023/grpcproxy/proto/v1"
@@ -37,7 +38,13 @@ type LogRecord struct {
 	Code        string
 }
 
+var disableAccessLogging = os.Getenv("DISABLE_ACCESS_LOGGING") != ""
+
 func logRequest(rec LogRecord) {
+	if disableAccessLogging {
+		return
+	}
+
 	connectProto := "HTTPS"
 	fmt.Printf("pog: %s %s %s %v [%v] %v\n", rec.ConnectAddr, rec.User, connectProto, rec.RemoteAddr, time.Now().Format(time.RFC3339), rec.Code)
 }
