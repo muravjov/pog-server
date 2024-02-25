@@ -28,7 +28,7 @@
 
             //"showLog": true,
             //"trace": "verbose",
-        },      
+        },
 
         {
             "name": "proxy",

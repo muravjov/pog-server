@@ -7,3 +7,5 @@
 /grpcproxy-client-log
 
 __debug_bin*
+
+.vscode/launch.json
