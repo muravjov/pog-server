@@ -94,9 +94,19 @@ func Main() bool {
 		}
 
 		httpMux := http.NewServeMux()
+		// :TRICKY:
+		// - we just append server' /metrics to client' /metrics, and so
+		//   we have to avoid gzipping (the client body and then not gzipped response)
+		// - we have to "EnableOpenMetrics: false", otherwise it adds
+		//   "# EOF\n" between metrics bodies
+		//
+		// use the flag MUX_SERVER_METRICS=true for a reason
 		handler := promhttp.HandlerFor(
 			appRegisterer,
-			promhttp.HandlerOpts{EnableOpenMetrics: true},
+			promhttp.HandlerOpts{
+				EnableOpenMetrics:  false,
+				DisableCompression: true,
+			},
 		).ServeHTTP
 
 		httpMux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
