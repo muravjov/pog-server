@@ -7,7 +7,7 @@ WORKDIR /app
 # Expecting to copy go.mod and if present go.sum.
 #COPY go.mod go.sum ./
 #RUN --mount=target=. go mod download
-RUN --mount=target=. go install .
+RUN --mount=target=. go install ./...
 
 ARG GRPCPROXY_COMMIT
 
