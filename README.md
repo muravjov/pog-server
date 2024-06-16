@@ -82,7 +82,7 @@ $ docker build --build-arg GRPCPROXY_COMMIT=$(git rev-parse --short HEAD) \
 The server part can be deployed into GCP Cloud Run, see `terraform/pog-server.tf` as an example. First, let's gate our server service with auth with login and password:
 
 ```bash
-$ docker run --rm --entrypoint /genauthitem catbo.net/pog-server:dev --name pog-client --password password --timeToLive 100000h
+$ docker run --rm --entrypoint /genauthitem pog-server:dev --name pog-client --password password --timeToLive 100000h
 {"name":"pog-client","hash":"$2a$10$oiV27ssmxy3ihPYA4w.rIOAH2eUQOnwCXoHL4PKXSZz2goKvL.Nwq","exp_date":"2035-11-12T05:22:05Z"}
 ```
 This JSON value we assign to the env variable POG_AUTH_ITEM1, see `terraform/pog-server.tf`
@@ -104,7 +104,7 @@ $ gcloud run services list
 
 Optionally, let's gate user requests to our client service, login=user and password=password:
 ```bash
-$ docker run --rm --entrypoint /genauthitem catbo.net/pog-server:dev --name user --password password --timeToLive 100000h
+$ docker run --rm --entrypoint /genauthitem pog-server:dev --name user --password password --timeToLive 100000h
 {"name":"user","hash":"$2a$10$uIGiYtUKu5OJtCfRO95yIOoE.udSSjMoTc1CqCXe3iRHpS4DA.b9m","exp_date":"2035-11-12T05:22:55Z"}
 ```
 
