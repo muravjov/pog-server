@@ -1,7 +1,21 @@
 # Proxy over gRPC
 
 pog-server is a HTTP proxy which uses gRPC for sending bytes:
-    User <= (HTTP proxy) => pog client <= (gRPC) => pog server <= (HTTP proxy) => destination server
+    User <= (HTTP proxying) => pog client <= (gRPC) => pog server <= (HTTP proxying) => destination server
+
+# Applications of Proxy over gRPC (PoG)
+
+* terraform: if https://registry.terraform.io/ is `not currently available in your region`, one can use it with a proxy like:
+```bash
+$ export HTTPS_PROXY=http://localhost:18080
+$ terraform init
+...
+```
+
+* If a site is not available from your IP address, use the proxy, e.g. with Google Chrome:
+```bash
+$ /Applications/Chromium.app/Contents/MacOS/Chromium --proxy-server="http://localhost:18080"
+```
 
 # Simple example of use
 
@@ -57,16 +71,18 @@ go build -o client ./grpcproxy/genauthitem
 # How to build Docker image
 
 ```bash
-$ docker build --platform linux/amd64 --build-arg GRPCPROXY_COMMIT=$(git rev-parse --short HEAD) \
+$ docker build --build-arg GRPCPROXY_COMMIT=$(git rev-parse --short HEAD) \
   -f grpcproxy/server/Dockerfile -t pog-server:dev .
 ```
 
-# How to deploy to Google Cloud Run using Terraform
+# How to deploy to Google Cloud Run using Terraform[^terraform-vs-console]
+
+[^terraform-vs-console]: One can deploy a Cloud Run service with the [console](https://console.cloud.google.com/), too.
 
 The server part can be deployed into GCP Cloud Run, see `terraform/pog-server.tf` as an example. First, let's gate our server service with auth with login and password:
 
 ```bash
-$ docker run --rm --platform linux/amd64 --entrypoint /genauthitem catbo.net/pog-server:dev --name pog-client --password password --timeToLive 100000h
+$ docker run --rm --entrypoint /genauthitem catbo.net/pog-server:dev --name pog-client --password password --timeToLive 100000h
 {"name":"pog-client","hash":"$2a$10$oiV27ssmxy3ihPYA4w.rIOAH2eUQOnwCXoHL4PKXSZz2goKvL.Nwq","exp_date":"2035-11-12T05:22:05Z"}
 ```
 This JSON value we assign to the env variable POG_AUTH_ITEM1, see `terraform/pog-server.tf`
@@ -88,7 +104,7 @@ $ gcloud run services list
 
 Optionally, let's gate user requests to our client service, login=user and password=password:
 ```bash
-$ docker run --rm --platform linux/amd64 --entrypoint /genauthitem catbo.net/pog-server:dev --name user --password password --timeToLive 100000h
+$ docker run --rm --entrypoint /genauthitem catbo.net/pog-server:dev --name user --password password --timeToLive 100000h
 {"name":"user","hash":"$2a$10$uIGiYtUKu5OJtCfRO95yIOoE.udSSjMoTc1CqCXe3iRHpS4DA.b9m","exp_date":"2035-11-12T05:22:55Z"}
 ```
 
@@ -107,7 +123,7 @@ CLIENT_AUTH_USER1={"name":"user","hash":"$2a$10$uIGiYtUKu5OJtCfRO95yIOoE.udSSjMo
 
 MUX_SERVER_METRICS=1
 
-$ docker run --rm -it --platform linux/amd64 \
+$ docker run --rm -it \
        --env-file .env.pog_client_scanly \
        --name my-proxy-client -p 18080:18080 --entrypoint /client pog-server:dev
 pog: ifconfig.me:443 ilya HTTPS 172.17.0.1:60748 [2024-06-15T12:53:42Z] 200
@@ -184,3 +200,45 @@ The common options:
 | DISABLE_ACCESS_LOGGING   | Disables request logging in the form `pog: ifconfig.me:443 ilya HTTPS 172.17.0.1:60748 [2024-06-15T12:53:42Z] 200` |
 | METRIC_NAMESPACE         | Prepends `Prometheus` metrics with a prefix (useful to avoid confusion between server and client metrics in case of `MUX_SERVER_METRICS`) |
 | GRPC_BUILTIN_METRICS     | Populates `/metrics` with the builtin gRPC metrics. Default: `1` (enabled) |
+
+# Metrics and operations
+
+Both PoG server and client provides Prometheus metrics at `/metrics`. An example:
+```bash
+$ curl -is http://localhost:18080/metrics | grep -E '(rpcs|tunnelling|mux|expiry)'
+# HELP grpc_io_client_completed_rpcs Number of completed RPCs by method and status.
+# TYPE grpc_io_client_completed_rpcs counter
+grpc_io_client_completed_rpcs{grpc_client_method="HTTPProxy/Run",grpc_client_status="CANCELLED"} 25
+grpc_io_client_completed_rpcs{grpc_client_method="HTTPProxy/Run",grpc_client_status="INTERNAL"} 3
+grpc_io_client_completed_rpcs{grpc_client_method="HTTPProxy/Run",grpc_client_status="OK"} 2
+# HELP grpc_io_client_started_rpcs Number of opened client RPCs, by method.
+# TYPE grpc_io_client_started_rpcs counter
+grpc_io_client_started_rpcs{grpc_client_method="HTTPProxy/Run"} 58
+# HELP pog_client_auth_item_earliest_expiry Returns earliest auth item expiry in unixtime
+# TYPE pog_client_auth_item_earliest_expiry gauge
+pog_client_auth_item_earliest_expiry{name="CLIENT_AUTH_"} 1.724295809e+09
+# HELP pog_client_server_client_metrics_mux_errors_total Number of errors while getting pog server's /metrics
+# TYPE pog_client_server_client_metrics_mux_errors_total counter
+pog_client_server_client_metrics_mux_errors_total{name="ok"} 1
+# HELP pog_client_tunnelling_connections_total Number of connections tunneling through the proxy.
+# TYPE pog_client_tunnelling_connections_total gauge
+pog_client_tunnelling_connections_total 28
+# HELP auth_item_earliest_expiry Returns earliest auth item expiry in unixtime
+# TYPE auth_item_earliest_expiry gauge
+auth_item_earliest_expiry{name="POG_AUTH_"} 1.724185253e+09
+# HELP grpc_io_server_completed_rpcs Number of completed RPCs by method and status.
+# TYPE grpc_io_server_completed_rpcs counter
+grpc_io_server_completed_rpcs{grpc_server_method="HTTPProxy/Run",grpc_server_status="OK"} 9
+grpc_io_server_completed_rpcs{grpc_server_method="HTTPProxy/Run",grpc_server_status="UNAVAILABLE"} 20
+# HELP grpc_io_server_started_rpcs Number of opened server RPCs, by method.
+# TYPE grpc_io_server_started_rpcs counter
+grpc_io_server_started_rpcs{grpc_server_method="HTTPProxy/Run"} 57
+# HELP tunnelling_connections_total Number of connections tunneling through the proxy.
+# TYPE tunnelling_connections_total gauge
+tunnelling_connections_total 28
+```
+
+What does it mean:
+* `rpcs`: stats how much requests were processed and their success
+* `tunnelling_connections_total`: a gauge featuring how many connections are being proccessed now; if the value is growing over time then there is a memory leak
+* `auth_item_earliest_expiry`: time when a user account is to expire (both at server and client side)
