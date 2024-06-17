@@ -1,7 +1,12 @@
 # Proxy over gRPC
 
 pog-server is a HTTP proxy which uses gRPC for sending bytes:
-    User <= (HTTP proxying) => pog client <= (gRPC) => pog server <= (HTTP proxying) => destination server
+
+```
+User <-(HTTP proxying)-> pog client <-(gRPC)-> pog server <-(HTTP proxying)-> destination server
+```
+
+[Статья на Хабре](https://habr.com/ru/articles/822189/)
 
 # Applications of Proxy over gRPC (PoG)
 
